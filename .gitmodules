@@ -1,0 +1,3 @@
+[submodule "obsidian-importer"]
+	path = obsidian-importer
+	url = https://github.com/spullara/obsidian-importer.git
