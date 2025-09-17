@@ -207,3 +207,16 @@ SORT file.name ASC
 ---
 
 **Ready to migrate from Notion to Obsidian? Follow the Quick Start guide above and you'll be converting databases in minutes!** 🚀
+
+## 📄 License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+### What this means:
+- ✅ **Free to use** for personal and commercial projects
+- ✅ **Free to modify** and distribute
+- ✅ **Free to contribute** improvements back to the project
+- ✅ **Patent protection** included
+- ⚖️ **Attribution required** (keep copyright notices)
+
+**TL;DR**: Use it freely, modify it, share it, just keep the license notice! 🎉

@@ -1,8 +1,9 @@
 {
   "name": "notiontoobsidian",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Convert Notion databases to Obsidian-compatible Markdown files",
+  "main": "server.js",
+  "license": "Apache-2.0",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
