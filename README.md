@@ -49,8 +49,9 @@ Repeat for each database you want to convert.
 2. **Click "Refresh Databases"** - you'll see your shared databases
 3. **Check "Import directly to Obsidian vault"**
 4. **Enter your Obsidian vault path** (see guide below)
-5. **Select a database** and click "Convert Selected Database"
-6. **Watch the progress bar** - your files will appear in Obsidian!
+5. **Choose your conversion format** (see options below)
+6. **Select a database** and click "Convert Selected Database"
+7. **Watch the progress bar** - your files will appear in Obsidian!
 
 ## 📁 Finding Your Obsidian Vault Path
 
@@ -70,6 +71,36 @@ Repeat for each database you want to convert.
 - Windows: `C:/Users/YourName/Documents/ObsidianVault`
 - Mac: `/Users/YourName/Documents/ObsidianVault`
 
+## 📊 Conversion Format Options
+
+Choose the format that best fits your Obsidian workflow:
+
+### **1. Separate Pages (Default)**
+- ✅ **Individual .md files** for each database row
+- ✅ **Full content preservation** with YAML frontmatter
+- ✅ **Best for detailed notes** with rich content
+- ✅ **Works immediately** - no plugins required
+
+### **2. Dataview Table + Individual Notes (Recommended)** 🌟
+- ✅ **Individual notes** with rich frontmatter (same as above)
+- ✅ **Master table file** with dynamic Dataview queries
+- ✅ **Auto-updating table view** in Obsidian
+- ✅ **Best of both worlds** - detailed notes + table overview
+- ⚙️ **Requires**: [Dataview plugin](https://github.com/blacksmithgu/obsidian-dataview)
+
+### **3. Single Markdown Table (Lightweight)**
+- ✅ **One table file** with all your data
+- ✅ **Sortable columns** in Obsidian's reading view
+- ✅ **No plugins required** - works with native Obsidian
+- ✅ **Perfect for simple databases** or quick reference
+
+### Installing the Dataview Plugin (for option 2):
+1. **Open Obsidian** → Settings → Community Plugins
+2. **Turn off Safe Mode** if it's enabled
+3. **Click "Browse"** and search for "Dataview"
+4. **Install and Enable** the Dataview plugin
+5. **That's it!** Your table will automatically work
+
 ## 🎯 What You Get
 
 Your converted files will have:
@@ -80,7 +111,9 @@ Your converted files will have:
 - ✅ **YAML frontmatter** with all your Notion properties
 - ✅ **Proper Markdown formatting** that Obsidian loves
 
-### Example Converted File
+### Example Output Files
+
+**Individual Note (all formats):**
 ```markdown
 ---
 notion_id: 12345678-1234-1234-1234-123456789012
@@ -100,6 +133,27 @@ This content was automatically converted from Notion!
 - Code blocks and quotes
 
 > Everything preserved perfectly for Obsidian
+```
+
+**Dataview Table File (format 2):**
+```markdown
+# My Database - Table View
+
+```dataview
+TABLE Status, Priority, Tags, created, updated
+FROM "Notion Imports/My Database"
+WHERE notion_id
+SORT file.name ASC
+```
+
+**Markdown Table File (format 3):**
+```markdown
+# My Database
+
+| Title | Status | Priority | Tags | Created | Updated |
+| --- | --- | --- | --- | --- | --- |
+| My Project Page | In Progress | High | project, important | 2023-01-01 | 2023-01-02 |
+| Another Page | Complete | Medium | work | 2023-01-03 | 2023-01-04 |
 ```
 
 ## 🔧 Troubleshooting
@@ -126,10 +180,15 @@ This content was automatically converted from Notion!
 ## 💡 Pro Tips
 
 - **Start small**: Try converting a small database first to test everything
+- **Choose the right format**:
+  - Use **Separate Pages** for detailed notes with rich content
+  - Use **Dataview Table** for the best of both worlds (notes + table view)
+  - Use **Markdown Table** for simple data that doesn't need individual notes
 - **Organize in Obsidian**: The "Create Notion Imports folder" option keeps things tidy
 - **Check your vault**: Files appear in Obsidian immediately after conversion
-- **Properties become tags**: Your Notion properties become searchable in Obsidian
-- **Links work**: Internal Notion links are preserved where possible
+- **Properties become searchable**: Your Notion properties work great with Obsidian's search
+- **Dataview is powerful**: If you choose the Dataview format, explore its query capabilities
+- **Tables are sortable**: Click column headers in Obsidian's reading view to sort
 
 ## 🆘 Need Help?
 
