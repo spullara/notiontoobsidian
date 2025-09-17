@@ -38,18 +38,27 @@ app.get('/api/databases', async (req, res) => {
             return res.status(400).json({ error: 'Notion token not configured' });
         }
 
+        // Search specifically for data_source objects (much more efficient!)
         const response = await notion.search({
             filter: {
                 property: 'object',
-                value: 'database'
+                value: 'data_source'
+            },
+            sort: {
+                direction: 'ascending',
+                timestamp: 'last_edited_time'
             }
         });
 
+
+
+        // Map data_sources to database format
         const databases = response.results.map(db => ({
             id: db.id,
             title: db.title?.[0]?.plain_text || 'Untitled Database',
             url: db.url,
-            properties: Object.keys(db.properties || {})
+            properties: Object.keys(db.properties || {}),
+            type: db.object // Include the type for debugging
         }));
 
         res.json(databases);
@@ -67,39 +76,186 @@ app.post('/api/convert/:databaseId', async (req, res) => {
         }
 
         const { databaseId } = req.params;
-        const { outputPath = './output' } = req.body;
+        const { outputPath = './output', obsidianVaultPath, createNotionFolder = true, conversionId } = req.body;
 
-        // Get database info
-        const database = await notion.databases.retrieve({ database_id: databaseId });
+        // Send initial progress
+        if (conversionId) {
+            sendProgress(conversionId, {
+                stage: 'starting',
+                message: 'Starting conversion...',
+                progress: 0
+            });
+        }
+
+        console.log('=== CONVERSION DEBUG ===');
+        console.log('Database ID:', databaseId);
+        console.log('Output Path:', outputPath);
+        console.log('Obsidian Vault Path:', obsidianVaultPath);
+        console.log('Create Notion Folder:', createNotionFolder);
+
+        // Send progress update
+        if (conversionId) {
+            sendProgress(conversionId, {
+                stage: 'searching',
+                message: 'Finding database...',
+                progress: 10
+            });
+        }
+
+        // First, let's try to find this database in our search results to see its type
+        const searchResponse = await notion.search({
+            query: '',
+            page_size: 100
+        });
+
+        const targetDb = searchResponse.results.find(item => item.id === databaseId);
+
+        // Send progress update
+        if (conversionId) {
+            sendProgress(conversionId, {
+                stage: 'retrieving',
+                message: 'Retrieving database information...',
+                progress: 20
+            });
+        }
+
+        // Try different approaches based on object type
+        let database;
+        if (targetDb?.object === 'data_source') {
+            try {
+                // For data_source, we might need to use a different endpoint
+                database = await notion.request({
+                    path: `data_sources/${databaseId}`,
+                    method: 'GET'
+                });
+            } catch (error) {
+                database = await notion.databases.retrieve({ database_id: databaseId });
+            }
+        } else {
+            database = await notion.databases.retrieve({ database_id: databaseId });
+        }
+
+        console.log('Database retrieved:', {
+            id: database.id,
+            object: database.object,
+            title: database.title?.[0]?.plain_text || 'No title',
+            propertiesCount: Object.keys(database.properties || {}).length
+        });
+
         const databaseTitle = database.title?.[0]?.plain_text || 'Untitled Database';
 
-        // Get all pages from the database
+        // Send progress update
+        if (conversionId) {
+            sendProgress(conversionId, {
+                stage: 'querying',
+                message: `Fetching pages from "${databaseTitle}"...`,
+                progress: 30
+            });
+        }
+
+        // Get all pages from the database/data_source
         const pages = [];
         let cursor;
-        
+        let pageCount = 0;
+
         do {
-            const response = await notion.databases.query({
-                database_id: databaseId,
-                start_cursor: cursor,
-                page_size: 100
-            });
-            
+            let response;
+            if (targetDb?.object === 'data_source') {
+                // For data_source, use the data sources query endpoint
+                response = await notion.request({
+                    path: `data_sources/${databaseId}/query`,
+                    method: 'POST',
+                    body: {
+                        start_cursor: cursor,
+                        page_size: 100
+                    }
+                });
+            } else {
+                response = await notion.databases.query({
+                    database_id: databaseId,
+                    start_cursor: cursor,
+                    page_size: 100
+                });
+            }
+
             pages.push(...response.results);
             cursor = response.next_cursor;
+            pageCount += response.results.length;
+
+            // Send progress update for page fetching
+            if (conversionId) {
+                sendProgress(conversionId, {
+                    stage: 'querying',
+                    message: `Fetched ${pageCount} pages from "${databaseTitle}"...`,
+                    progress: 30 + (cursor ? 10 : 20) // 30-50% for fetching
+                });
+            }
         } while (cursor);
 
-        // Create output directory
-        const dbOutputPath = path.join(outputPath, sanitizeFilename(databaseTitle));
-        await fs.mkdir(dbOutputPath, { recursive: true });
+        // Determine the final output path
+        let finalOutputPath;
+        if (obsidianVaultPath) {
+            // Use Obsidian vault path
+            if (createNotionFolder) {
+                finalOutputPath = path.join(obsidianVaultPath, 'Notion Imports', sanitizeFilename(databaseTitle));
+            } else {
+                finalOutputPath = path.join(obsidianVaultPath, sanitizeFilename(databaseTitle));
+            }
+        } else {
+            // Use regular output path
+            finalOutputPath = path.join(outputPath, sanitizeFilename(databaseTitle));
+        }
+
+
+        await fs.mkdir(finalOutputPath, { recursive: true });
+
+        // Send progress update
+        if (conversionId) {
+            sendProgress(conversionId, {
+                stage: 'converting',
+                message: `Converting ${pages.length} pages to Markdown...`,
+                progress: 50,
+                totalPages: pages.length
+            });
+        }
 
         // Convert each page
         const convertedFiles = [];
-        for (const page of pages) {
+        for (let i = 0; i < pages.length; i++) {
+            const page = pages[i];
             try {
-                const fileName = await convertPageToMarkdown(page, dbOutputPath);
+                const fileName = await convertPageToMarkdown(page, finalOutputPath);
                 convertedFiles.push(fileName);
+
+                // Send progress update every 10 pages or on last page
+                if (conversionId && (i % 10 === 0 || i === pages.length - 1)) {
+                    const progress = 50 + ((i + 1) / pages.length) * 40; // 50-90% for conversion
+                    sendProgress(conversionId, {
+                        stage: 'converting',
+                        message: `Converted ${i + 1}/${pages.length} pages...`,
+                        progress: Math.round(progress),
+                        currentPage: i + 1,
+                        totalPages: pages.length
+                    });
+                }
             } catch (error) {
                 console.error(`Error converting page ${page.id}:`, error);
+            }
+        }
+
+        // Send final progress update
+        if (conversionId) {
+            sendProgress(conversionId, {
+                stage: 'complete',
+                message: `Conversion complete! Created ${convertedFiles.length} files.`,
+                progress: 100,
+                totalPages: pages.length,
+                filesCreated: convertedFiles.length
+            });
+
+            // Clean up the progress stream
+            if (global.progressStreams) {
+                global.progressStreams.delete(conversionId);
             }
         }
 
@@ -107,8 +263,10 @@ app.post('/api/convert/:databaseId', async (req, res) => {
             success: true,
             database: databaseTitle,
             filesCreated: convertedFiles.length,
-            outputPath: dbOutputPath,
-            files: convertedFiles
+            outputPath: finalOutputPath,
+            obsidianIntegration: !!obsidianVaultPath,
+            files: convertedFiles,
+            conversionId: conversionId
         });
 
     } catch (error) {
@@ -272,6 +430,42 @@ app.get('/api/config', (req, res) => {
         obsidianConfigured: !!process.env.OBSIDIAN_VAULT_PATH
     });
 });
+
+// SSE endpoint for conversion progress
+app.get('/api/progress/:conversionId', (req, res) => {
+    const { conversionId } = req.params;
+
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*'
+    });
+
+    // Store the response object for this conversion
+    if (!global.progressStreams) {
+        global.progressStreams = new Map();
+    }
+    global.progressStreams.set(conversionId, res);
+
+    // Clean up when client disconnects
+    req.on('close', () => {
+        global.progressStreams.delete(conversionId);
+    });
+});
+
+// Helper function to send progress updates
+function sendProgress(conversionId, data) {
+    if (global.progressStreams && global.progressStreams.has(conversionId)) {
+        const res = global.progressStreams.get(conversionId);
+        try {
+            res.write(`data: ${JSON.stringify(data)}\n\n`);
+        } catch (error) {
+            console.error(`Progress stream error for ${conversionId}:`, error.message);
+            global.progressStreams.delete(conversionId);
+        }
+    }
+}
 
 // Initialize clients on startup
 initializeClients();

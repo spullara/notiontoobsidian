@@ -1,90 +1,86 @@
 # Notion to Obsidian Converter
 
-A Node.js web application that converts Notion databases to Obsidian-compatible Markdown files using the Notion API.
+**Easily transfer your Notion databases to Obsidian with one click!**
 
-## Features
+This tool converts your Notion databases into Obsidian-compatible Markdown files, preserving all your data, properties, and formatting. Perfect for migrating from Notion to Obsidian or keeping both in sync.
 
-- Web-based interface for easy database selection
-- Converts Notion databases to Markdown files with frontmatter
-- Preserves page properties as YAML frontmatter
-- Supports various Notion block types (headings, paragraphs, lists, code blocks, etc.)
-- Batch conversion of entire databases
-- Real-time conversion progress and results
+## ✨ What It Does
 
-## Setup Instructions
+- 🔄 **One-click conversion** of entire Notion databases
+- 📁 **Direct import** to your Obsidian vault (no manual copying!)
+- 📊 **Real-time progress bar** so you know exactly what's happening
+- 🏷️ **Preserves all properties** as YAML frontmatter (tags, dates, etc.)
+- 📝 **Converts all content** (headings, lists, code blocks, quotes, etc.)
+- 🎯 **Web interface** - no command line needed!
 
-### 1. Install Dependencies
+## 🚀 Quick Start (5 minutes)
 
-```bash
-npm install
-```
+### Step 1: Download and Setup
+1. **Download this project** (green "Code" button → "Download ZIP")
+2. **Extract the files** to a folder like `C:/NotionConverter/`
+3. **Open Command Prompt** in that folder
+4. **Run**: `npm install` (installs required components)
 
-### 2. Notion API Setup
+### Step 2: Connect to Notion
+1. **Go to**: https://www.notion.so/my-integrations
+2. **Click "New integration"**
+3. **Name it**: "Obsidian Converter"
+4. **Select your workspace** and click "Submit"
+5. **Copy the token** (starts with `secret_`)
 
-#### Create a Notion Integration
+### Step 3: Configure the App
+1. **Run**: `npm run setup` (guided setup)
+2. **Paste your token** when prompted
+3. **Press Enter** to start the app
 
-1. Go to [Notion Developers](https://www.notion.so/my-integrations)
-2. Click "New integration"
-3. Give it a name (e.g., "Obsidian Converter")
-4. Select the workspace you want to use
-5. Click "Submit"
-6. Copy the "Internal Integration Token" - you'll need this for the `.env` file
+### Step 4: Share Your Databases
+**Important**: You need to share each database you want to convert:
 
-#### Share Databases with Your Integration
+1. **Open a database** in Notion
+2. **Click "..." menu** (top right)
+3. **Select "Add connections"**
+4. **Choose "Obsidian Converter"**
+5. **Click "Confirm"**
 
-For each database you want to convert:
+Repeat for each database you want to convert.
 
-1. Open the database in Notion
-2. Click the "..." menu in the top right
-3. Select "Add connections"
-4. Find and select your integration
-5. Click "Confirm"
+### Step 5: Convert!
+1. **Open**: http://localhost:3000
+2. **Click "Refresh Databases"** - you'll see your shared databases
+3. **Check "Import directly to Obsidian vault"**
+4. **Enter your Obsidian vault path** (see guide below)
+5. **Select a database** and click "Convert Selected Database"
+6. **Watch the progress bar** - your files will appear in Obsidian!
 
-**Important**: You must share each database individually with your integration, or the API won't be able to access them.
+## 📁 Finding Your Obsidian Vault Path
 
-### 3. Environment Configuration
+### If you have Obsidian:
+1. **Open Obsidian**
+2. **Click Settings** (gear icon, bottom left)
+3. **Go to "Files & Links"**
+4. **Copy the "Vault location"** path
+5. **Paste it** into the converter
 
-1. Copy the example environment file:
-   ```bash
-   copy .env.example .env
-   ```
+### If you don't have Obsidian yet:
+1. **Download Obsidian**: https://obsidian.md
+2. **Create a new vault** (choose a location like `C:/Users/YourName/Documents/MyVault`)
+3. **Use that path** in the converter
 
-2. Edit the `.env` file and add your Notion token:
-   ```
-   NOTION_TOKEN=secret_your_actual_token_here
-   ```
+### Example paths:
+- Windows: `C:/Users/YourName/Documents/ObsidianVault`
+- Mac: `/Users/YourName/Documents/ObsidianVault`
 
-### 4. Run the Application
+## 🎯 What You Get
 
-```bash
-npm start
-```
+Your converted files will have:
 
-The application will be available at `http://localhost:3000`
+### Perfect Obsidian Integration
+- ✅ **Direct import** to your vault (no manual copying!)
+- ✅ **Organized folders** (`Notion Imports/DatabaseName/`)
+- ✅ **YAML frontmatter** with all your Notion properties
+- ✅ **Proper Markdown formatting** that Obsidian loves
 
-## Usage
-
-1. Open your browser and go to `http://localhost:3000`
-2. The configuration status will show if your Notion token is properly configured
-3. Click "Refresh Databases" to load your available Notion databases
-4. Select a database from the list
-5. Optionally modify the output path (default is `./output`)
-6. Click "Convert Selected Database"
-7. Wait for the conversion to complete - this may take a few minutes for large databases
-
-## Output Format
-
-The converter creates:
-
-- A folder named after your database
-- Individual Markdown files for each page in the database
-- YAML frontmatter containing:
-  - Original Notion page ID
-  - Creation and modification dates
-  - All database properties
-
-### Example Output
-
+### Example Converted File
 ```markdown
 ---
 notion_id: 12345678-1234-1234-1234-123456789012
@@ -95,80 +91,60 @@ Priority: High
 Tags: project, important
 ---
 
-# Page Title
+# My Project Page
 
-Page content converted to Markdown...
+This content was automatically converted from Notion!
+
+- All your bullet points
+- **Bold text** and *italic text*
+- Code blocks and quotes
+
+> Everything preserved perfectly for Obsidian
 ```
 
-## Supported Notion Block Types
+## 🔧 Troubleshooting
 
-- Paragraphs
-- Headings (H1, H2, H3)
-- Bulleted lists
-- Numbered lists
-- Code blocks
-- Quotes
-- Basic text formatting
+### "No databases found"
+- **Make sure you shared your databases** with the integration (Step 4 above)
+- Click "Refresh Databases" after sharing
+- Check that you're in the right Notion workspace
 
-## Supported Property Types
+### "Notion token not configured"
+- Run `npm run setup` again to reconfigure
+- Make sure you copied the full token (starts with `secret_`)
 
-- Rich text
-- Numbers
-- Select/Multi-select
-- Dates
-- Checkboxes
-- URLs
-- Email addresses
-- Phone numbers
+### "Can't find Obsidian vault path"
+- The path should be the main folder containing your `.obsidian` folder
+- Try creating a new vault if you're unsure
+- Use forward slashes `/` even on Windows
 
-## Troubleshooting
+### Conversion takes forever
+- **This is normal!** Large databases (100+ pages) can take 5-10 minutes
+- Watch the progress bar - it shows exactly what's happening
+- Don't close the browser tab while converting
 
-### "Notion token not configured" Error
+## 💡 Pro Tips
 
-- Make sure your `.env` file exists and contains a valid `NOTION_TOKEN`
-- Restart the server after updating the `.env` file
+- **Start small**: Try converting a small database first to test everything
+- **Organize in Obsidian**: The "Create Notion Imports folder" option keeps things tidy
+- **Check your vault**: Files appear in Obsidian immediately after conversion
+- **Properties become tags**: Your Notion properties become searchable in Obsidian
+- **Links work**: Internal Notion links are preserved where possible
 
-### "No databases found" or Empty Database List
+## 🆘 Need Help?
 
-- Ensure you've shared the databases with your Notion integration
-- Check that your integration has the correct permissions
-- Try refreshing the databases list
+1. **Check the browser console** (F12) for detailed error messages
+2. **Try a smaller database** first to test your setup
+3. **Verify database sharing** - this is the most common issue
+4. **Restart the app** if something seems stuck
 
-### Conversion Errors
+## 🔒 Privacy & Security
 
-- Large databases may take several minutes to convert
-- Check the browser console for detailed error messages
-- Ensure your Notion integration has access to all pages in the database
+- **Your data stays local** - nothing is sent to external servers
+- **Notion token is secure** - stored only on your computer
+- **No data collection** - this tool doesn't track or store anything
+- **Open source** - you can see exactly what it does
 
-## File Structure
+---
 
-```
-notiontoobsidian/
-├── server.js              # Main server application
-├── public/
-│   └── index.html         # Web interface
-├── package.json           # Node.js dependencies
-├── .env.example          # Environment variables template
-├── .env                  # Your actual environment variables (create this)
-└── output/               # Default output directory (created automatically)
-```
-
-## API Endpoints
-
-- `GET /` - Serves the web interface
-- `GET /api/config` - Returns configuration status
-- `GET /api/databases` - Returns list of available Notion databases
-- `POST /api/convert/:databaseId` - Converts a specific database
-
-## Notes
-
-- This tool creates standard Markdown files that work well with Obsidian
-- The YAML frontmatter is compatible with Obsidian's metadata system
-- Files are organized in folders by database name
-- All special characters in filenames are sanitized for filesystem compatibility
-
-## Security
-
-- Keep your `.env` file secure and never commit it to version control
-- The Notion token provides access to your Notion workspace
-- Consider using environment-specific tokens for different deployments
+**Ready to migrate from Notion to Obsidian? Follow the Quick Start guide above and you'll be converting databases in minutes!** 🚀

@@ -126,6 +126,12 @@
         .btn-secondary:hover {
             background-color: #545b62;
         }
+
+        .btn-secondary:disabled {
+            background-color: #6c757d;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
         
         .output-path {
             flex: 1;
@@ -174,6 +180,45 @@
             font-size: 0.9em;
             margin-bottom: 2px;
         }
+
+        .progress-container {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-details {
+            font-size: 0.9em;
+            color: #666;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -203,7 +248,31 @@
             </div>
             
             <div class="controls">
-                <input type="text" class="output-path" id="outputPath" placeholder="Output path (default: ./output)" value="./output">
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="useObsidianVault" onchange="toggleObsidianOptions()">
+                        <label for="useObsidianVault" style="font-weight: 600;">Import directly to Obsidian vault</label>
+                    </div>
+
+                    <div id="obsidianOptions" style="display: none; padding-left: 25px; border-left: 3px solid #007bff;">
+                        <div style="margin-bottom: 10px; display: flex; gap: 10px;">
+                            <input type="text" class="output-path" id="obsidianVaultPath" placeholder="Path to your Obsidian vault (e.g., C:/Users/YourName/Documents/ObsidianVault)" style="flex: 1;">
+                            <button type="button" class="btn btn-secondary" onclick="selectVaultFolder()" id="browseBtn">Browse...</button>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="createNotionFolder" checked>
+                            <label for="createNotionFolder" style="font-size: 14px;">Create "Notion Imports" folder</label>
+                        </div>
+                        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                            Files will be saved to: <span id="previewPath">Vault/Notion Imports/DatabaseName/</span>
+                        </div>
+                    </div>
+
+                    <div id="regularOptions">
+                        <input type="text" class="output-path" id="outputPath" placeholder="Output path (default: ./output)" value="./output">
+                    </div>
+                </div>
+
                 <button class="btn btn-primary" id="convertBtn" onclick="convertSelected()" disabled>
                     Convert Selected Database
                 </button>
@@ -211,6 +280,17 @@
             
             <div class="loading" id="loading">
                 Converting database... This may take a few minutes for large databases.
+            </div>
+
+            <div class="progress-container" id="progressContainer" style="display: none;">
+                <div class="progress-header">
+                    <span id="progressMessage">Starting conversion...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-details" id="progressDetails"></div>
             </div>
             
             <div class="result" id="result"></div>
@@ -298,33 +378,214 @@
             document.getElementById('convertBtn').disabled = false;
         }
         
+        function toggleObsidianOptions() {
+            const useObsidian = document.getElementById('useObsidianVault').checked;
+            const obsidianOptions = document.getElementById('obsidianOptions');
+            const regularOptions = document.getElementById('regularOptions');
+
+            if (useObsidian) {
+                obsidianOptions.style.display = 'block';
+                regularOptions.style.display = 'none';
+                updatePreviewPath();
+            } else {
+                obsidianOptions.style.display = 'none';
+                regularOptions.style.display = 'block';
+            }
+        }
+
+        function updatePreviewPath() {
+            const vaultPath = document.getElementById('obsidianVaultPath').value || 'YourVault';
+            const createFolder = document.getElementById('createNotionFolder').checked;
+            const previewPath = document.getElementById('previewPath');
+
+            const baseName = vaultPath.split(/[/\\]/).pop() || 'YourVault';
+            if (createFolder) {
+                previewPath.textContent = `${baseName}/Notion Imports/DatabaseName/`;
+            } else {
+                previewPath.textContent = `${baseName}/DatabaseName/`;
+            }
+        }
+
+        // Folder selection using File System Access API
+        async function selectVaultFolder() {
+            try {
+                // Check if the File System Access API is supported
+                if ('showDirectoryPicker' in window) {
+                    const directoryHandle = await window.showDirectoryPicker({
+                        mode: 'readwrite'
+                    });
+
+                    // Get the full path (this is tricky with the new API)
+                    // We'll use the directory name and show a success message
+                    const vaultPathInput = document.getElementById('obsidianVaultPath');
+                    vaultPathInput.value = directoryHandle.name;
+
+                    // Store the directory handle for potential future use
+                    window.selectedVaultHandle = directoryHandle;
+
+                    // Show success message
+                    showResult('success', `✅ Vault folder selected: "${directoryHandle.name}". The converter will use this folder for imports.`);
+
+                    updatePreviewPath();
+                } else {
+                    // Fallback for browsers that don't support the API
+                    showResult('error', `
+                        <strong>Folder picker not supported in this browser.</strong><br>
+                        Please manually enter your Obsidian vault path.<br>
+                        <small>Tip: Copy the path from your file explorer's address bar.</small>
+                    `);
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('Error selecting folder:', error);
+                    showResult('error', 'Failed to select folder. Please enter the path manually.');
+                }
+            }
+        }
+
+        // Add event listeners for preview updates
+        document.addEventListener('DOMContentLoaded', function() {
+            const vaultPathInput = document.getElementById('obsidianVaultPath');
+            const createFolderCheckbox = document.getElementById('createNotionFolder');
+            const browseBtn = document.getElementById('browseBtn');
+
+            if (vaultPathInput) {
+                vaultPathInput.addEventListener('input', updatePreviewPath);
+            }
+            if (createFolderCheckbox) {
+                createFolderCheckbox.addEventListener('change', updatePreviewPath);
+            }
+
+            // Check if File System Access API is supported and update button text
+            if (browseBtn) {
+                if ('showDirectoryPicker' in window) {
+                    browseBtn.textContent = 'Browse...';
+                    browseBtn.title = 'Click to select your Obsidian vault folder';
+                } else {
+                    browseBtn.textContent = 'Not Supported';
+                    browseBtn.disabled = true;
+                    browseBtn.title = 'Folder picker not supported in this browser. Please enter path manually.';
+                }
+            }
+        });
+
+        let currentEventSource = null;
+
+        function startProgressTracking(conversionId) {
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressMessage = document.getElementById('progressMessage');
+            const progressPercent = document.getElementById('progressPercent');
+            const progressDetails = document.getElementById('progressDetails');
+
+            progressContainer.style.display = 'block';
+
+            currentEventSource = new EventSource(`/api/progress/${conversionId}`);
+
+            currentEventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+
+                // Update progress bar
+                progressFill.style.width = data.progress + '%';
+                progressPercent.textContent = data.progress + '%';
+                progressMessage.textContent = data.message;
+
+                // Update details if available
+                if (data.currentPage && data.totalPages) {
+                    progressDetails.textContent = `Page ${data.currentPage} of ${data.totalPages}`;
+                } else if (data.totalPages) {
+                    progressDetails.textContent = `Total pages: ${data.totalPages}`;
+                } else {
+                    progressDetails.textContent = '';
+                }
+
+                // Close connection when complete
+                if (data.stage === 'complete') {
+                    currentEventSource.close();
+                    currentEventSource = null;
+                }
+            };
+
+            currentEventSource.onerror = function(event) {
+                console.error('Progress tracking error:', event);
+                currentEventSource.close();
+                currentEventSource = null;
+            };
+        }
+
         async function convertSelected() {
             if (!selectedDatabase) return;
-            
-            const outputPath = document.getElementById('outputPath').value || './output';
+
+            // Generate conversion ID first
+            const conversionId = Date.now().toString();
+
+            const useObsidian = document.getElementById('useObsidianVault').checked;
             const loadingElement = document.getElementById('loading');
+            const progressContainer = document.getElementById('progressContainer');
             const resultElement = document.getElementById('result');
             const convertBtn = document.getElementById('convertBtn');
-            
-            // Show loading state
-            loadingElement.style.display = 'block';
+
+            let requestBody = {};
+
+            if (useObsidian) {
+                const obsidianVaultPath = document.getElementById('obsidianVaultPath').value;
+                if (!obsidianVaultPath && !window.selectedVaultHandle) {
+                    showResult('error', 'Please specify your Obsidian vault path or use the Browse button');
+                    return;
+                }
+
+                // If we have a directory handle from the file picker, we'll need to handle this differently
+                // For now, we'll use the path or folder name
+                let vaultPath = obsidianVaultPath;
+                if (window.selectedVaultHandle && !obsidianVaultPath) {
+                    // If only folder name is available, show a helpful message
+                    showResult('error', `
+                        <strong>Please enter the full path to your vault.</strong><br>
+                        Selected folder: "${window.selectedVaultHandle.name}"<br>
+                        <small>Due to browser security, please type or paste the complete path to this folder.</small>
+                    `);
+                    return;
+                }
+
+                requestBody = {
+                    obsidianVaultPath: vaultPath,
+                    createNotionFolder: document.getElementById('createNotionFolder').checked,
+                    conversionId: conversionId
+                };
+            } else {
+                requestBody = {
+                    outputPath: document.getElementById('outputPath').value || './output',
+                    conversionId: conversionId
+                };
+            }
+
+            // Show progress state
+            loadingElement.style.display = 'none';
+            progressContainer.style.display = 'none';
             resultElement.style.display = 'none';
             convertBtn.disabled = true;
-            
+
+            // Start progress tracking
+            startProgressTracking(conversionId);
+
             try {
                 const response = await fetch(`/api/convert/${selectedDatabase.id}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ outputPath })
+                    body: JSON.stringify(requestBody)
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (response.ok) {
+                    const integrationMessage = result.obsidianIntegration
+                        ? '<br><strong>✅ Files imported directly to your Obsidian vault!</strong>'
+                        : '';
+
                     showResult('success', `
-                        <strong>Conversion completed successfully!</strong><br>
+                        <strong>Conversion completed successfully!</strong>${integrationMessage}<br>
                         Database: ${result.database}<br>
                         Files created: ${result.filesCreated}<br>
                         Output path: ${result.outputPath}
@@ -342,7 +603,12 @@
                 console.error('Error converting database:', error);
                 showResult('error', 'Failed to convert database. Please check the console for details.');
             } finally {
-                loadingElement.style.display = 'none';
+                // Clean up progress tracking
+                if (currentEventSource) {
+                    currentEventSource.close();
+                    currentEventSource = null;
+                }
+                progressContainer.style.display = 'none';
                 convertBtn.disabled = false;
             }
         }
