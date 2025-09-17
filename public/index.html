@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notion to Obsidian Converter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .config-status {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .status-ok { background-color: #28a745; }
+        .status-error { background-color: #dc3545; }
+        
+        .databases-section {
+            margin-top: 30px;
+        }
+        
+        .database-list {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .database-item {
+            padding: 15px;
+            border-bottom: 1px solid #dee2e6;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .database-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .database-item.selected {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .database-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .database-properties {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-primary:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .output-path {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .loading {
+            display: none;
+            color: #007bff;
+            font-style: italic;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .result.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .result.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .file-list {
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(255,255,255,0.5);
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        .file-item {
+            font-family: monospace;
+            font-size: 0.9em;
+            margin-bottom: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Notion to Obsidian Converter</h1>
+        
+        <div class="config-status" id="configStatus">
+            <h3>Configuration Status</h3>
+            <div class="status-item">
+                <div class="status-indicator" id="notionStatus"></div>
+                <span>Notion API Token</span>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator status-ok"></div>
+                <span>Ready to convert to Markdown files</span>
+            </div>
+        </div>
+        
+        <div class="databases-section">
+            <h3>Available Databases</h3>
+            <button class="btn btn-secondary" onclick="loadDatabases()">Refresh Databases</button>
+            
+            <div class="database-list" id="databaseList">
+                <div style="padding: 20px; text-align: center; color: #666;">
+                    Click "Refresh Databases" to load your Notion databases
+                </div>
+            </div>
+            
+            <div class="controls">
+                <input type="text" class="output-path" id="outputPath" placeholder="Output path (default: ./output)" value="./output">
+                <button class="btn btn-primary" id="convertBtn" onclick="convertSelected()" disabled>
+                    Convert Selected Database
+                </button>
+            </div>
+            
+            <div class="loading" id="loading">
+                Converting database... This may take a few minutes for large databases.
+            </div>
+            
+            <div class="result" id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedDatabase = null;
+        
+        // Check configuration on page load
+        window.onload = function() {
+            checkConfig();
+        };
+        
+        async function checkConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                
+                const notionStatus = document.getElementById('notionStatus');
+                notionStatus.className = `status-indicator ${config.notionConfigured ? 'status-ok' : 'status-error'}`;
+                
+                if (config.notionConfigured) {
+                    loadDatabases();
+                }
+            } catch (error) {
+                console.error('Error checking config:', error);
+            }
+        }
+        
+        async function loadDatabases() {
+            const listElement = document.getElementById('databaseList');
+            listElement.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">Loading databases...</div>';
+            
+            try {
+                const response = await fetch('/api/databases');
+                const databases = await response.json();
+                
+                if (response.ok) {
+                    displayDatabases(databases);
+                } else {
+                    listElement.innerHTML = `<div style="padding: 20px; text-align: center; color: #dc3545;">Error: ${databases.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Error loading databases:', error);
+                listElement.innerHTML = '<div style="padding: 20px; text-align: center; color: #dc3545;">Failed to load databases</div>';
+            }
+        }
+        
+        function displayDatabases(databases) {
+            const listElement = document.getElementById('databaseList');
+            
+            if (databases.length === 0) {
+                listElement.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No databases found</div>';
+                return;
+            }
+            
+            listElement.innerHTML = '';
+            
+            databases.forEach(db => {
+                const item = document.createElement('div');
+                item.className = 'database-item';
+                item.onclick = () => selectDatabase(db, item);
+                
+                item.innerHTML = `
+                    <div class="database-title">${db.title}</div>
+                    <div class="database-properties">Properties: ${db.properties.join(', ')}</div>
+                `;
+                
+                listElement.appendChild(item);
+            });
+        }
+        
+        function selectDatabase(database, element) {
+            // Remove previous selection
+            document.querySelectorAll('.database-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Select current item
+            element.classList.add('selected');
+            selectedDatabase = database;
+            
+            // Enable convert button
+            document.getElementById('convertBtn').disabled = false;
+        }
+        
+        async function convertSelected() {
+            if (!selectedDatabase) return;
+            
+            const outputPath = document.getElementById('outputPath').value || './output';
+            const loadingElement = document.getElementById('loading');
+            const resultElement = document.getElementById('result');
+            const convertBtn = document.getElementById('convertBtn');
+            
+            // Show loading state
+            loadingElement.style.display = 'block';
+            resultElement.style.display = 'none';
+            convertBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`/api/convert/${selectedDatabase.id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ outputPath })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult('success', `
+                        <strong>Conversion completed successfully!</strong><br>
+                        Database: ${result.database}<br>
+                        Files created: ${result.filesCreated}<br>
+                        Output path: ${result.outputPath}
+                        ${result.files && result.files.length > 0 ? `
+                            <div class="file-list">
+                                <strong>Created files:</strong><br>
+                                ${result.files.map(file => `<div class="file-item">${file}</div>`).join('')}
+                            </div>
+                        ` : ''}
+                    `);
+                } else {
+                    showResult('error', `Error: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error converting database:', error);
+                showResult('error', 'Failed to convert database. Please check the console for details.');
+            } finally {
+                loadingElement.style.display = 'none';
+                convertBtn.disabled = false;
+            }
+        }
+        
+        function showResult(type, message) {
+            const resultElement = document.getElementById('result');
+            resultElement.className = `result ${type}`;
+            resultElement.innerHTML = message;
+            resultElement.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
