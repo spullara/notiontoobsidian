@@ -266,10 +266,52 @@
                         <div style="font-size: 12px; color: #666; margin-top: 5px;">
                             Files will be saved to: <span id="previewPath">Vault/Notion Imports/DatabaseName/</span>
                         </div>
+
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+                            <label style="font-weight: 600; margin-bottom: 8px; display: block;">Conversion Format:</label>
+                            <div style="margin-left: 10px;">
+                                <label style="display: block; margin-bottom: 5px;">
+                                    <input type="radio" name="conversionFormat" value="separate-pages" checked onchange="updateFormatDescription()">
+                                    Separate pages (current method)
+                                </label>
+                                <label style="display: block; margin-bottom: 5px;">
+                                    <input type="radio" name="conversionFormat" value="dataview-table" onchange="updateFormatDescription()">
+                                    Dataview table + individual notes (recommended)
+                                </label>
+                                <label style="display: block; margin-bottom: 5px;">
+                                    <input type="radio" name="conversionFormat" value="markdown-table" onchange="updateFormatDescription()">
+                                    Single markdown table (lightweight)
+                                </label>
+                            </div>
+                            <div class="format-description" id="formatDescription" style="font-size: 0.9em; color: #666; margin-top: 8px; padding: 8px; background-color: #f8f9fa; border-radius: 4px;">
+                                Creates individual .md files for each database row (current behavior)
+                            </div>
+                        </div>
                     </div>
 
                     <div id="regularOptions">
                         <input type="text" class="output-path" id="outputPath" placeholder="Output path (default: ./output)" value="./output">
+
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+                            <label style="font-weight: 600; margin-bottom: 8px; display: block;">Conversion Format:</label>
+                            <div style="margin-left: 10px;">
+                                <label style="display: block; margin-bottom: 5px;">
+                                    <input type="radio" name="conversionFormatRegular" value="separate-pages" checked onchange="updateFormatDescriptionRegular()">
+                                    Separate pages (current method)
+                                </label>
+                                <label style="display: block; margin-bottom: 5px;">
+                                    <input type="radio" name="conversionFormatRegular" value="dataview-table" onchange="updateFormatDescriptionRegular()">
+                                    Dataview table + individual notes (recommended)
+                                </label>
+                                <label style="display: block; margin-bottom: 5px;">
+                                    <input type="radio" name="conversionFormatRegular" value="markdown-table" onchange="updateFormatDescriptionRegular()">
+                                    Single markdown table (lightweight)
+                                </label>
+                            </div>
+                            <div class="format-description" id="formatDescriptionRegular" style="font-size: 0.9em; color: #666; margin-top: 8px; padding: 8px; background-color: #f8f9fa; border-radius: 4px;">
+                                Creates individual .md files for each database row (current behavior)
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -403,6 +445,40 @@
                 previewPath.textContent = `${baseName}/Notion Imports/DatabaseName/`;
             } else {
                 previewPath.textContent = `${baseName}/DatabaseName/`;
+            }
+        }
+
+        function updateFormatDescription() {
+            const selectedFormat = document.querySelector('input[name="conversionFormat"]:checked').value;
+            const description = document.getElementById('formatDescription');
+
+            switch (selectedFormat) {
+                case 'separate-pages':
+                    description.textContent = 'Creates individual .md files for each database row (current behavior)';
+                    break;
+                case 'dataview-table':
+                    description.textContent = 'Creates individual notes + a master table file using Dataview plugin queries. Requires Dataview plugin in Obsidian.';
+                    break;
+                case 'markdown-table':
+                    description.textContent = 'Creates a single markdown table with all data. Lightweight and works without plugins.';
+                    break;
+            }
+        }
+
+        function updateFormatDescriptionRegular() {
+            const selectedFormat = document.querySelector('input[name="conversionFormatRegular"]:checked').value;
+            const description = document.getElementById('formatDescriptionRegular');
+
+            switch (selectedFormat) {
+                case 'separate-pages':
+                    description.textContent = 'Creates individual .md files for each database row (current behavior)';
+                    break;
+                case 'dataview-table':
+                    description.textContent = 'Creates individual notes + a master table file using Dataview plugin queries. Requires Dataview plugin in Obsidian.';
+                    break;
+                case 'markdown-table':
+                    description.textContent = 'Creates a single markdown table with all data. Lightweight and works without plugins.';
+                    break;
             }
         }
 
@@ -547,14 +623,20 @@
                     return;
                 }
 
+                const conversionFormat = document.querySelector('input[name="conversionFormat"]:checked').value;
+
                 requestBody = {
                     obsidianVaultPath: vaultPath,
                     createNotionFolder: document.getElementById('createNotionFolder').checked,
+                    conversionFormat: conversionFormat,
                     conversionId: conversionId
                 };
             } else {
+                const conversionFormat = document.querySelector('input[name="conversionFormatRegular"]:checked').value;
+
                 requestBody = {
                     outputPath: document.getElementById('outputPath').value || './output',
+                    conversionFormat: conversionFormat,
                     conversionId: conversionId
                 };
             }

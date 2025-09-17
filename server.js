@@ -76,7 +76,7 @@ app.post('/api/convert/:databaseId', async (req, res) => {
         }
 
         const { databaseId } = req.params;
-        const { outputPath = './output', obsidianVaultPath, createNotionFolder = true, conversionId } = req.body;
+        const { outputPath = './output', obsidianVaultPath, createNotionFolder = true, conversionId, conversionFormat = 'separate-pages' } = req.body;
 
         // Send initial progress
         if (conversionId) {
@@ -219,28 +219,41 @@ app.post('/api/convert/:databaseId', async (req, res) => {
             });
         }
 
-        // Convert each page
-        const convertedFiles = [];
-        for (let i = 0; i < pages.length; i++) {
-            const page = pages[i];
-            try {
-                const fileName = await convertPageToMarkdown(page, finalOutputPath);
-                convertedFiles.push(fileName);
+        // Convert based on selected format
+        let convertedFiles = [];
 
-                // Send progress update every 10 pages or on last page
-                if (conversionId && (i % 10 === 0 || i === pages.length - 1)) {
-                    const progress = 50 + ((i + 1) / pages.length) * 40; // 50-90% for conversion
-                    sendProgress(conversionId, {
-                        stage: 'converting',
-                        message: `Converted ${i + 1}/${pages.length} pages...`,
-                        progress: Math.round(progress),
-                        currentPage: i + 1,
-                        totalPages: pages.length
-                    });
+        switch (conversionFormat) {
+            case 'dataview-table':
+                convertedFiles = await convertToDataviewFormat(pages, database, finalOutputPath, conversionId);
+                break;
+            case 'markdown-table':
+                convertedFiles = await convertToMarkdownTable(pages, database, finalOutputPath, conversionId);
+                break;
+            case 'separate-pages':
+            default:
+                // Convert each page to separate files (original behavior)
+                for (let i = 0; i < pages.length; i++) {
+                    const page = pages[i];
+                    try {
+                        const fileName = await convertPageToMarkdown(page, finalOutputPath);
+                        convertedFiles.push(fileName);
+
+                        // Send progress update every 10 pages or on last page
+                        if (conversionId && (i % 10 === 0 || i === pages.length - 1)) {
+                            const progress = 50 + ((i + 1) / pages.length) * 40; // 50-90% for conversion
+                            sendProgress(conversionId, {
+                                stage: 'converting',
+                                message: `Converted ${i + 1}/${pages.length} pages...`,
+                                progress: Math.round(progress),
+                                currentPage: i + 1,
+                                totalPages: pages.length
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`Error converting page ${page.id}:`, error);
+                    }
                 }
-            } catch (error) {
-                console.error(`Error converting page ${page.id}:`, error);
-            }
+                break;
         }
 
         // Send final progress update
@@ -421,6 +434,154 @@ async function convertBlocksToMarkdown(blocks) {
 // Helper function to sanitize filenames
 function sanitizeFilename(filename) {
     return filename.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
+}
+
+// Convert to Dataview format: individual notes + master table
+async function convertToDataviewFormat(pages, database, outputPath, conversionId) {
+    const databaseTitle = database.title?.[0]?.plain_text || 'Untitled Database';
+    const convertedFiles = [];
+
+    // Create individual notes with rich frontmatter
+    for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        try {
+            const fileName = await convertPageToMarkdown(page, outputPath);
+            convertedFiles.push(fileName);
+
+            if (conversionId && (i % 10 === 0 || i === pages.length - 1)) {
+                const progress = 50 + ((i + 1) / pages.length) * 30; // 50-80% for individual notes
+                sendProgress(conversionId, {
+                    stage: 'converting',
+                    message: `Created note ${i + 1}/${pages.length}...`,
+                    progress: Math.round(progress),
+                    currentPage: i + 1,
+                    totalPages: pages.length
+                });
+            }
+        } catch (error) {
+            console.error(`Error converting page ${page.id}:`, error);
+        }
+    }
+
+    // Create master Dataview table file
+    if (conversionId) {
+        sendProgress(conversionId, {
+            stage: 'converting',
+            message: 'Creating Dataview table...',
+            progress: 85
+        });
+    }
+
+    const tableFileName = `${sanitizeFilename(databaseTitle)}_Table.md`;
+    const tableFilePath = path.join(outputPath, tableFileName);
+
+    // Generate Dataview query
+    const properties = Object.keys(database.properties || {}).filter(key =>
+        database.properties[key].type !== 'title'
+    );
+
+    let dataviewContent = `# ${databaseTitle} - Table View\n\n`;
+    dataviewContent += `This table is automatically generated from your notes using the Dataview plugin.\n\n`;
+    dataviewContent += `\`\`\`dataview\n`;
+    dataviewContent += `TABLE `;
+
+    // Add property columns
+    if (properties.length > 0) {
+        dataviewContent += properties.map(prop => `${prop}`).join(', ');
+    } else {
+        dataviewContent += `created, updated`;
+    }
+
+    dataviewContent += `\nFROM "${path.basename(outputPath)}"\n`;
+    dataviewContent += `WHERE notion_id\n`;
+    dataviewContent += `SORT file.name ASC\n`;
+    dataviewContent += `\`\`\`\n\n`;
+
+    dataviewContent += `## Instructions\n\n`;
+    dataviewContent += `1. Install the [Dataview plugin](https://github.com/blacksmithgu/obsidian-dataview) in Obsidian\n`;
+    dataviewContent += `2. Enable the plugin in Settings → Community Plugins\n`;
+    dataviewContent += `3. This table will automatically update when you modify the notes\n\n`;
+    dataviewContent += `**Total records:** ${pages.length}\n`;
+
+    await fs.writeFile(tableFilePath, dataviewContent, 'utf8');
+    convertedFiles.push(tableFileName);
+
+    return convertedFiles;
+}
+
+// Convert to single markdown table format
+async function convertToMarkdownTable(pages, database, outputPath, conversionId) {
+    const databaseTitle = database.title?.[0]?.plain_text || 'Untitled Database';
+
+    if (conversionId) {
+        sendProgress(conversionId, {
+            stage: 'converting',
+            message: 'Creating markdown table...',
+            progress: 60
+        });
+    }
+
+    // Get all property names
+    const properties = Object.keys(database.properties || {});
+    const titleProperty = properties.find(key => database.properties[key].type === 'title') || 'Title';
+    const otherProperties = properties.filter(key => database.properties[key].type !== 'title');
+
+    let tableContent = `# ${databaseTitle}\n\n`;
+    tableContent += `**Total records:** ${pages.length}  \n`;
+    tableContent += `**Last updated:** ${new Date().toISOString().split('T')[0]}\n\n`;
+
+    // Create table header
+    const headers = [titleProperty, ...otherProperties, 'Created', 'Updated'];
+    tableContent += `| ${headers.join(' | ')} |\n`;
+    tableContent += `| ${headers.map(() => '---').join(' | ')} |\n`;
+
+    // Add table rows
+    for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        const row = [];
+
+        // Add title
+        const titleProp = Object.values(page.properties).find(prop => prop.type === 'title');
+        const title = titleProp?.title?.[0]?.plain_text || `Page ${page.id.slice(-8)}`;
+        row.push(title);
+
+        // Add other properties
+        for (const propName of otherProperties) {
+            const property = page.properties[propName];
+            const value = property ? extractPropertyValue(property) : '';
+            // Escape pipe characters and clean up for table
+            const cleanValue = String(value).replace(/\|/g, '\\|').replace(/\n/g, ' ').slice(0, 100);
+            row.push(cleanValue || '-');
+        }
+
+        // Add created and updated dates
+        row.push(page.created_time.split('T')[0]);
+        row.push(page.last_edited_time.split('T')[0]);
+
+        tableContent += `| ${row.join(' | ')} |\n`;
+
+        if (conversionId && (i % 50 === 0 || i === pages.length - 1)) {
+            const progress = 60 + ((i + 1) / pages.length) * 30; // 60-90% for table creation
+            sendProgress(conversionId, {
+                stage: 'converting',
+                message: `Added row ${i + 1}/${pages.length} to table...`,
+                progress: Math.round(progress)
+            });
+        }
+    }
+
+    tableContent += `\n## Notes\n\n`;
+    tableContent += `- This table contains all data from your Notion database\n`;
+    tableContent += `- Long text values are truncated to 100 characters\n`;
+    tableContent += `- You can sort columns by clicking the header in Obsidian's reading view\n`;
+    tableContent += `- To edit data, you'll need to modify the original Notion database and re-export\n`;
+
+    // Save the table file
+    const tableFileName = `${sanitizeFilename(databaseTitle)}_Table.md`;
+    const tableFilePath = path.join(outputPath, tableFileName);
+    await fs.writeFile(tableFilePath, tableContent, 'utf8');
+
+    return [tableFileName];
 }
 
 // Route to check configuration
