@@ -297,6 +297,10 @@
                                     <input type="radio" name="conversionFormat" value="markdown-table" onchange="updateFormatDescription()">
                                     Single markdown table (lightweight)
                                 </label>
+                                <label style="display: block; margin-bottom: 5px;">
+                                    <input type="radio" name="conversionFormat" value="obsidian-base" onchange="updateFormatDescription()">
+                                    Obsidian Base (native database view)
+                                </label>
                             </div>
                             <div class="format-description" id="formatDescription" style="font-size: 0.9em; color: #666; margin-top: 8px; padding: 8px; background-color: #f8f9fa; border-radius: 4px;">
                                 Creates individual .md files for each database row (current behavior)
@@ -321,6 +325,10 @@
                                 <label style="display: block; margin-bottom: 5px;">
                                     <input type="radio" name="conversionFormatRegular" value="markdown-table" onchange="updateFormatDescriptionRegular()">
                                     Single markdown table (lightweight)
+                                </label>
+                                <label style="display: block; margin-bottom: 5px;">
+                                    <input type="radio" name="conversionFormatRegular" value="obsidian-base" onchange="updateFormatDescriptionRegular()">
+                                    Obsidian Base (native database view)
                                 </label>
                             </div>
                             <div class="format-description" id="formatDescriptionRegular" style="font-size: 0.9em; color: #666; margin-top: 8px; padding: 8px; background-color: #f8f9fa; border-radius: 4px;">
@@ -477,6 +485,9 @@
                 case 'markdown-table':
                     description.textContent = 'Creates a single markdown table with all data. Lightweight and works without plugins.';
                     break;
+                case 'obsidian-base':
+                    description.textContent = 'Creates individual notes + a .base file for native Obsidian database views. Requires Obsidian 1.7+ with Bases feature.';
+                    break;
             }
         }
 
@@ -493,6 +504,9 @@
                     break;
                 case 'markdown-table':
                     description.textContent = 'Creates a single markdown table with all data. Lightweight and works without plugins.';
+                    break;
+                case 'obsidian-base':
+                    description.textContent = 'Creates individual notes + a .base file for native Obsidian database views. Requires Obsidian 1.7+ with Bases feature.';
                     break;
             }
         }

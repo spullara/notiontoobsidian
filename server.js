@@ -245,6 +245,9 @@ app.post('/api/convert/:databaseId', async (req, res) => {
             case 'markdown-table':
                 convertedFiles = await convertToMarkdownTable(pages, database, finalOutputPath, conversionId);
                 break;
+            case 'obsidian-base':
+                convertedFiles = await convertToObsidianBase(pages, database, finalOutputPath, conversionId);
+                break;
             case 'separate-pages':
             default:
                 // Convert each page to separate files (original behavior)
@@ -314,11 +317,8 @@ async function convertPageToMarkdown(page, outputPath) {
         // Get page content
         const blocks = await getPageBlocks(page.id);
         
-        // Convert to markdown
-        let markdown = `# ${title}\n\n`;
-        
-        // Add properties as frontmatter
-        markdown += '---\n';
+        // Start with frontmatter at the beginning
+        let markdown = '---\n';
         markdown += `notion_id: ${page.id}\n`;
         markdown += `created: ${page.created_time}\n`;
         markdown += `updated: ${page.last_edited_time}\n`;
@@ -328,12 +328,21 @@ async function convertPageToMarkdown(page, outputPath) {
             if (property.type !== 'title') {
                 const value = extractPropertyValue(property);
                 if (value) {
-                    markdown += `${key}: ${value}\n`;
+                    // Handle multi-line values and special characters for proper YAML
+                    const cleanValue = String(value).replace(/\n/g, ' ').replace(/"/g, '\\"');
+                    if (cleanValue.includes(':') || cleanValue.includes('\n') || cleanValue.length > 100) {
+                        markdown += `${key}: "${cleanValue}"\n`;
+                    } else {
+                        markdown += `${key}: ${cleanValue}\n`;
+                    }
                 }
             }
         }
         markdown += '---\n\n';
-        
+
+        // Add title and content
+        markdown += `# ${title}\n\n`;
+
         // Add content blocks
         markdown += await convertBlocksToMarkdown(blocks);
         
@@ -598,6 +607,124 @@ async function convertToMarkdownTable(pages, database, outputPath, conversionId)
     await fs.writeFile(tableFilePath, tableContent, 'utf8');
 
     return [tableFileName];
+}
+
+// Convert to Obsidian Base format: individual notes + .base file
+async function convertToObsidianBase(pages, database, outputPath, conversionId) {
+    const databaseTitle = database.title?.[0]?.plain_text || 'Untitled Database';
+    const convertedFiles = [];
+
+    // Create individual notes with rich frontmatter (same as separate-pages format)
+    for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        try {
+            const fileName = await convertPageToMarkdown(page, outputPath);
+            convertedFiles.push(fileName);
+
+            if (conversionId && (i % 10 === 0 || i === pages.length - 1)) {
+                const progress = 50 + ((i + 1) / pages.length) * 30; // 50-80% for individual notes
+                sendProgress(conversionId, {
+                    stage: 'converting',
+                    message: `Created note ${i + 1}/${pages.length}...`,
+                    progress: Math.round(progress),
+                    currentPage: i + 1,
+                    totalPages: pages.length
+                });
+            }
+        } catch (error) {
+            console.error(`Error converting page ${page.id}:`, error);
+        }
+    }
+
+    // Create .base file for native Obsidian database view
+    if (conversionId) {
+        sendProgress(conversionId, {
+            stage: 'converting',
+            message: 'Creating Obsidian Base file...',
+            progress: 85
+        });
+    }
+
+    const baseFileName = `${sanitizeFilename(databaseTitle)}.base`;
+    const baseFilePath = path.join(outputPath, baseFileName);
+
+    // Analyze actual properties that exist in the converted pages
+    const actualProperties = new Set();
+    for (const page of pages) {
+        for (const [key, property] of Object.entries(page.properties)) {
+            if (property.type !== 'title') {
+                const value = extractPropertyValue(property);
+                if (value && value.toString().trim()) { // Only include properties with actual values
+                    actualProperties.add(key);
+                }
+            }
+        }
+    }
+
+    const titleProperty = Object.keys(database.properties || {}).find(key => database.properties[key].type === 'title') || 'Title';
+    const otherProperties = Array.from(actualProperties);
+
+    // Generate .base file content in YAML format
+    let baseContent = `# Obsidian Base file for ${databaseTitle}\n`;
+    baseContent += `# Generated from Notion database\n\n`;
+
+    // Filters section - include all markdown files (no global filter, let views handle it)
+    // Note: Global filters apply to all views. We'll use view-specific filters instead.\n\n`;
+
+    // Properties section - configure display names
+    baseContent += `properties:\n`;
+
+    // Skip title property since file.name is more useful
+    // Add other properties with proper display names (use exact property names from Notion)
+    for (const propName of otherProperties) {
+        const propType = database.properties[propName]?.type || 'text';
+        baseContent += `  "${propName}":\n`;
+        baseContent += `    displayName: "${propName}"\n`;
+    }
+
+    // Add file properties
+    baseContent += `  file.ctime:\n`;
+    baseContent += `    displayName: "Created"\n`;
+    baseContent += `  file.mtime:\n`;
+    baseContent += `    displayName: "Modified"\n\n`;
+
+    // Views section - create a table view
+    baseContent += `views:\n`;
+    baseContent += `  - type: table\n`;
+    baseContent += `    name: "${databaseTitle} Table"\n`;
+    baseContent += `    limit: 100\n`;
+    baseContent += `    filters:\n`;
+    baseContent += `      file.ext == "md"\n`;
+    baseContent += `    order:\n`;
+
+    // Add columns to the table view (use exact property names from frontmatter)
+    // Start with file.name instead of title property
+    baseContent += `      - file.name\n`;
+
+    for (const propName of otherProperties.slice(0, 8)) { // Limit to first 8 properties for readability
+        baseContent += `      - "${propName}"\n`;
+    }
+
+    baseContent += `      - file.ctime\n`;
+    baseContent += `      - file.mtime\n\n`;
+
+    // Add a card view as well
+    baseContent += `  - type: card\n`;
+    baseContent += `    name: "${databaseTitle} Cards"\n`;
+    baseContent += `    limit: 50\n`;
+
+    // Add instructions as comments
+    baseContent += `\n# Instructions:\n`;
+    baseContent += `# 1. This .base file creates native Obsidian database views\n`;
+    baseContent += `# 2. Requires Obsidian 1.7+ with Bases feature enabled\n`;
+    baseContent += `# 3. Open this file in Obsidian to see your database\n`;
+    baseContent += `# 4. You can edit views, filters, and properties as needed\n`;
+    baseContent += `# 5. See https://help.obsidian.md/bases/syntax for full documentation\n`;
+
+    await fs.writeFile(baseFilePath, baseContent, 'utf8');
+    convertedFiles.push(baseFileName);
+
+    return convertedFiles;
 }
 
 // Route to check configuration

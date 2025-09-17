@@ -94,12 +94,25 @@ Choose the format that best fits your Obsidian workflow:
 - ✅ **No plugins required** - works with native Obsidian
 - ✅ **Perfect for simple databases** or quick reference
 
+### **4. Obsidian Base (Native Database View)** 🆕
+- ✅ **Individual notes** with rich frontmatter (same as separate pages)
+- ✅ **Native .base file** for true database functionality
+- ✅ **Table and card views** built into Obsidian
+- ✅ **Advanced filtering and sorting** with Bases syntax
+- ⚙️ **Requires**: Obsidian 1.7+ with Bases feature enabled
+
 ### Installing the Dataview Plugin (for option 2):
 1. **Open Obsidian** → Settings → Community Plugins
 2. **Turn off Safe Mode** if it's enabled
 3. **Click "Browse"** and search for "Dataview"
 4. **Install and Enable** the Dataview plugin
 5. **That's it!** Your table will automatically work
+
+### Using Obsidian Bases (for option 4):
+1. **Update Obsidian** to version 1.7.0 or later
+2. **Enable Bases** in Settings → Core Plugins → Bases
+3. **Open the .base file** that gets created during conversion
+4. **Enjoy native database views** with filtering, sorting, and multiple view types!
 
 ## 🎯 What You Get
 
@@ -154,6 +167,33 @@ SORT file.name ASC
 | --- | --- | --- | --- | --- | --- |
 | My Project Page | In Progress | High | project, important | 2023-01-01 | 2023-01-02 |
 | Another Page | Complete | Medium | work | 2023-01-03 | 2023-01-04 |
+```
+
+**Obsidian Base File (format 4):**
+```yaml
+# Obsidian Base file for My Database
+# Generated from Notion database
+
+filters:
+  file.inFolder("My Database")
+
+properties:
+  title:
+    displayName: "Title"
+  status:
+    displayName: "Status"
+  priority:
+    displayName: "Priority"
+
+views:
+  - type: table
+    name: "My Database Table"
+    limit: 100
+    order:
+      - title
+      - status
+      - priority
+      - file.ctime
 ```
 
 ## 🔧 Troubleshooting
